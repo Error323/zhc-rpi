@@ -20,13 +20,14 @@
 
 import os
 import sys
+import time
 import serial
 import argparse
-import signal
 import json
 import daemon
 import paho.mqtt.client as mqtt
 
+UUID = int('boiler'.encode('hex'), 16)
 
 def u16(x):
     """
@@ -91,13 +92,21 @@ def message(client, device, msg):
     print msg.topic + " " + str(msg.payload)
 
 
-def parse(msg):
+def index(key):
+    keys = MSGID.keys()
+    keys.sort()
+    keys.index(key)
+    return keys.index(key) + 7
+
+
+def parse(msg, values):
     """
     Parses boiler messages
     @param msg, the incomming message
+    @param values, a running list of all values
     """
 
-    # Filter slave to master (we only want boiler msgs)
+    # Filter such that we only get boiler msgs)
     if msg[0] != 'B':
         return
 
@@ -111,10 +120,12 @@ def parse(msg):
     data_val = frame & 0xffff
 
     if data_id in MSGID:
-        status, val = MSGID[data_id][1], MSGID[data_id][0](data_val)
-        client.publish("zhc/boiler/{}".format(data_id), 
-                       payload=json.dumps({"status": status, "value": val}), 
-                       retain=False, qos=2)
+        status, val = MSGID[data_id]
+        if data_id == 0:
+            for i in range(8):
+                values[i] = (val >> i) & 1
+        else:
+            values[index(data_id)] = val
 
 
 if __name__ == "__main__":
@@ -139,13 +150,14 @@ if __name__ == "__main__":
         client.on_message = message
         client.connect("127.0.0.1", 1883, 60)
         client.loop_start()
-        client.subscribe(("zhc/serial", 2))
+        client.subscribe(("zhc/otgw", 2))
 
         try:
             device.open()
         except IOError as e:
             sys.exit("Error: {}".format(e))
             
+        t = time.time()
         line = ""
         while (True):
             try:
@@ -155,3 +167,9 @@ if __name__ == "__main__":
                 continue
 
             parse(line)
+            
+            if time.time() - t >= 10.0:
+                t += 10.0
+                client.publish("zhc/log/submit", 
+                    payload=json.dumps({'uuid':UUID, 'values':values}), 
+                    retain=False, qos=0)
