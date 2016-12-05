@@ -27,6 +27,7 @@ import json
 import daemon
 import paho.mqtt.client as mqtt
 
+
 UUID = int('boiler'.encode('hex'), 16)
 
 def u16(x):
@@ -78,10 +79,6 @@ MSGID = {
 }
 
 
-def sighandler(signum, frame):
-    sys.exit("Trapped signal '%d' exit now" % (signum))
-
-
 def message(client, device, msg):
     """
     Handles incomming requests
@@ -120,7 +117,7 @@ def parse(msg, values):
     data_val = frame & 0xffff
 
     if data_id in MSGID:
-        status, val = MSGID[data_id]
+        status, val = MSGID[data_id][1], MSGID[data_id][0](data_val)
         if data_id == 0:
             for i in range(8):
                 values[i] = (val >> i) & 1
@@ -131,9 +128,6 @@ def parse(msg, values):
 if __name__ == "__main__":
 
     with daemon.DaemonContext():
-        signal.signal(signal.SIGTERM, sighandler)
-        signal.signal(signal.SIGINT, sighandler)
-
         device          = serial.Serial()
         device.baudrate = 9600
         device.bytesize = serial.SEVENBITS
@@ -157,19 +151,27 @@ if __name__ == "__main__":
         except IOError as e:
             sys.exit("Error: {}".format(e))
             
+        # Create logging database
+        NMETRICS = len(MSGID) + 7
+        INTERVAL = 10
+        client.publish("zhc/log/new", 
+                payload=json.dumps({'uuid':UUID, 'interval':INTERVAL, 'nmetrics': NMETRICS}), 
+            retain=False, qos=0)
+
+        values = [0.0] * (len(MSGID)+7)
         t = time.time()
         line = ""
-        while (True):
+        while True:
             try:
                 line = device.readline()
             except IOError as e:
                 print "Error: {}".format(e)
                 continue
 
-            parse(line)
+            parse(line, values)
             
-            if time.time() - t >= 10.0:
-                t += 10.0
+            if time.time() - t >= INTERVAL:
+                t += INTERVAL
                 client.publish("zhc/log/submit", 
                     payload=json.dumps({'uuid':UUID, 'values':values}), 
                     retain=False, qos=0)
