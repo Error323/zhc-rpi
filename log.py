@@ -24,41 +24,37 @@ import json
 import paho.mqtt.client as mqtt
 from timestore import Client, TimestoreException
 
-MSG = { 
-    0: 0,
-    1: 8,
-    18: 9,
-    19: 10,
-    25: 11,
-    26: 12,
-    33: 13,
-    116: 14,
-    117: 15,
-    118: 16,
-    119: 17,
-    120: 18,
-    121: 19,
-    122: 20,
-    123: 21
-}
 
-def message(client, updates, msg):
+def message(client, user, msg):
     """
     Handles incomming requests
 
     @param client, the active mqtt client
-    @param _, empty
+    @param user, user data (config and timestore objects)
     @param msg, the incomming message
     """
-    mid = int(msg.topic[msg.topic.rfind('/')+1:])
-    load = json.loads(msg.payload)
-    value = load['value']
+    cfg, ts = user
+    topic = msg.topic.split('/')[-1]
+    data = json.loads(msg.payload)
 
-    if mid == 0:
-        for i in range(8):
-            updates[0][i] = (value >> i) & 1
-    else:
-        updates[0][MSG[mid]] = value
+    # if this is a new node we first register it with the database
+    if topic == 'new':
+        try:
+            node = ts.get_node(node_id=data['uuid'], key=cfg.key)
+        except TimestoreException:
+            node = {
+                'interval' : data['interval'],
+                'decimation' : [20, 6, 6, 4, 7],
+                'metrics' : [{'pad_mode': 0, 'downsample_mode': 0}] * data['nmetrics']
+            }
+            ts.create_node(data['uuid'], node, key=cfg.key)
+
+    # submit values otherwise
+    elif topic == 'submit':
+        try:
+            ts.submit_values(data['uuid'], data['values'], key=cfg.key)
+        except TimestoreException:
+            pass
 
 
 def get_configuration():
@@ -67,27 +63,22 @@ def get_configuration():
     """
     parser = argparse.ArgumentParser()
     parser.add_argument('--host', type=str, default="localhost:8080",
-        help='Host:Port where timestore is running')
+        help='host:port where timestore is running')
     parser.add_argument('--key', type=str,
-        help='Timestore key')
+        help='timestore admin key')
 
     return parser.parse_args()
 
 
 if __name__ == "__main__":
-    boiler_values = [0.0] * 22
-    boiler_node = int('boiler'.encode('hex'), 16)
-    config = get_configuration()
-    ts = Client(config.host)
+    with daemon.DaemonContext():
+        config = get_configuration()
+        ts = Client(config.host)
 
-    client = mqtt.Client(client_id="log", clean_session=True,
-                         userdata=[boiler_values],
-                         protocol=mqtt.MQTTv31)
-    client.on_message = message
-    client.connect("127.0.0.1", 1883, 60)
-    client.loop_start()
-    client.subscribe(("zhc/boiler/+", 2))
-
-    while True:
-        ts.submit_values(boiler_node, boiler_values, key=config.key)
-        time.sleep(1)
+        client = mqtt.Client(client_id="log", clean_session=True,
+                             userdata=(config, ts),
+                             protocol=mqtt.MQTTv31)
+        client.on_message = message
+        client.connect("127.0.0.1", 1883, 60)
+        client.subscribe(("zhc/log/+", 2))
+        client.loop_forever()
