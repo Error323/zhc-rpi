@@ -65,11 +65,11 @@ def message(client, device, msg):
 
 
 def index(key):
-	"""
-	Computes deterministic index for MSGID. This is necessary as some of the
-	messages pack multiple data points.
-	@param key, the key to compute an index for
-	"""
+    """
+    Computes deterministic index for MSGID. This is necessary as some of the
+    messages pack multiple data points.
+    @param key, the key to compute an index for
+    """
     keys = MSGID.keys()
     keys.sort()
     keys.index(key)
