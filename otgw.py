@@ -26,56 +26,31 @@ import argparse
 import json
 import daemon
 import paho.mqtt.client as mqtt
+from convert import *
 
 
-UUID = int('boiler'.encode('hex'), 16)
-
-def u16(x):
-    """
-    Converts 2 bytes to unsigned int
-    @param x, the 2 bytes
-    """
-    return x
-
-
-def s16(x):
-    """
-    Converts 2 bytes to signed int
-    @param x, the 2 bytes
-    """
-    if x&0x8000:
-        return -(0x10000 - x)
-    else:
-        return x
-
-
-def f88(x):
-    """
-    Converts fixed point 8.8 to float
-    @param x, the 2 bytes
-    """
-    if x&0x8000:
-        return round(-(0x10000 - x) / 256.0, 2)
-    else:
-        return round(x / 256.0, 2)
-
-
+UUID = int('cvsystem'.encode('hex'), 16)
 MSGID = {
-    0:   (u16, "Status"),
-    1:   (f88, "Control Setpoint"),
-    18:  (f88, "CH-Pressure"),
-    19:  (f88, "DHW Flow-rate"),
-    25:  (f88, "Boiler Temperature"),
-    26:  (f88, "DHW Temperature"),
-    33:  (s16, "Exhaust Temperature"),
-    116: (u16, "Burner Starts"),
-    117: (u16, "CH Pump Starts"),
-    118: (u16, "DHW Pump Starts"),
-    119: (u16, "DHW Burner Starts"),
-    120: (u16, "Burner Operation Hours"),
-    121: (u16, "CH Pump Operation Hours"),
-    122: (u16, "DHW Pump Operation Hours"),
-    123: (u16, "DHW Burner Operation Hours")
+    0:   (u16, "Status"),                    # Master and Slave Status flags
+    1:   (f88, "TSet"),                      # Control setpoint ie CH water temperature setpoint (°C)
+    14:  (f88, "Max-rel-mod-level-setting"), # Maximum relative modulation level setting (%)
+    16:  (f88, "TrSet"),                     # Room Setpoint (°C)
+    17:  (f88, "Rel.-mod-level"),            # Relative Modulation Level (%)
+    18:  (f88, "CH-Pressure"),               # Water pressure in CH circuit (bar)
+    19:  (f88, "DHW-flow-rate"),             # Water flow rate in DHW circuit. (litres/minute)
+    24:  (f88, "Tr"),                        # Room temperature (°C)
+    25:  (f88, "Tboiler"),                   # Boiler flow water temperature (°C)
+    26:  (f88, "Tdhw"),                      # DHW temperature (°C)
+    27:  (f88, "Toutside"),                  # Outside temperature (°C)
+    56:  (f88, "TdhwSet"),                   # DHW setpoint (°C) (Remote parameter 1)
+    116: (u16, "Burner starts"),             # Number of starts burner
+    117: (u16, "CH pump starts"),            # Number of starts CH pump
+    118: (u16, "DHW pump/valve starts"),     # Number of starts DHW pump/valve
+    119: (u16, "DHW burner starts"),         # Number of starts burner during DHW mode
+    120: (u16, "Burner operation hours"),    # Number of hours that burner is in operation (i.e. flame on)
+    121: (u16, "CH pump operation hours"),   # Number of hours that CH pump has been running
+    122: (u16, "DHW pump operation hours"),  # Number of hours that DHW pump has been running or DHW valve has been opened
+    123: (u16, "DHW burner operation hours") # Number of hours that burner is in operation during DHW mode
 }
 
 
@@ -90,6 +65,11 @@ def message(client, device, msg):
 
 
 def index(key):
+	"""
+	Computes deterministic index for MSGID. This is necessary as some of the
+	messages pack multiple data points.
+	@param key, the key to compute an index for
+	"""
     keys = MSGID.keys()
     keys.sort()
     keys.index(key)
@@ -102,10 +82,6 @@ def parse(msg, values):
     @param msg, the incomming message
     @param values, a running list of all values
     """
-
-    # Filter such that we only get boiler msgs)
-    if msg[0] != 'B':
-        return
 
     frame = int(msg[1:], 16)
     if bin(frame).count("1") & 1:
