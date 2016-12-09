@@ -132,7 +132,7 @@ if __name__ == "__main__":
         INTERVAL = 10
         client.publish("zhc/log/new", 
                 payload=json.dumps({'uuid':UUID, 'interval':INTERVAL, 'nmetrics': NMETRICS}), 
-            retain=False, qos=0)
+            retain=False, qos=2)
 
         values = [0.0] * (len(MSGID)+7)
         t = time.time()
