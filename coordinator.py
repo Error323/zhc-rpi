@@ -53,7 +53,7 @@ if __name__ == "__main__":
         device.xonxoff  = 0
         device.rtscts   = 0
         device.timeout  = 100
-        device.port     = '/dev/ttyACM1'
+        device.port     = '/dev/ttyACM0'
 
         client = mqtt.Client(client_id="coordinator", clean_session=True,
                              userdata=device, protocol=mqtt.MQTTv31)

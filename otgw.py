@@ -18,6 +18,7 @@
 #    Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 #    02111-1307, USA.
 
+import re
 import os
 import sys
 import time
@@ -83,9 +84,16 @@ def parse(msg, values):
     @param values, a running list of all values
     """
 
-    frame = int(msg[1:], 16)
+    match = re.search(r"\w[0-9A-F]{8}", msg)
+    if not match:
+        print "E1: ({}) {}".format(len(msg), msg[:-1])
+        sys.stdout.flush()
+        return
+
+    frame = int(match.group()[1:], 16)
     if bin(frame).count("1") & 1:
-        print "Error: Invalid msg {}".format(msg)
+        print "E2: ({}) {}".format(len(msg), msg[:-1])
+        sys.stdout.flush()
         return
 
     msg_type = (frame >> 28) & 0x7
@@ -106,8 +114,8 @@ if __name__ == "__main__":
     with daemon.DaemonContext():
         device          = serial.Serial()
         device.baudrate = 9600
-        device.bytesize = serial.SEVENBITS
-        device.parity   = serial.PARITY_EVEN
+        device.bytesize = serial.EIGHTBITS
+        device.parity   = serial.PARITY_NONE
         device.stopbits = serial.STOPBITS_ONE
         device.xonxoff  = 0
         device.rtscts   = 0
@@ -125,8 +133,8 @@ if __name__ == "__main__":
         try:
             device.open()
         except IOError as e:
-            sys.exit("Error: {}".format(e))
-            
+            sys.exit("E0: {}".format(e))
+           
         # Create logging database
         NMETRICS = len(MSGID) + 7
         INTERVAL = 10
@@ -141,7 +149,8 @@ if __name__ == "__main__":
             try:
                 line = device.readline()
             except IOError as e:
-                print "Error: {}".format(e)
+                print "E3: {}".format(e)
+                sys.stdout.flush()
                 continue
 
             parse(line, values)
