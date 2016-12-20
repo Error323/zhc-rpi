@@ -1,19 +1,19 @@
 $(function() {
   var options = {
-    lines: { show: true },
-    points: { show: false },
-    xaxis: { mode: 'time', tickLength: 5 },
-    yaxis: { },
+    series: {
+      pie: { show: true }
+    }
   };
 
-  function reload_graph() {
-    // Restrict to last couple of hours
+  var raw = [[], [], [], []];
+  var ready = [false, false, false, false];
+  var data = [];
+
+  function load_data() {
     end = new Date().getTime();
-    start = new Date(end - 3600000*4);
+    start = new Date(end - 3600*24*1000);
     start = Math.floor(start / 1000);
     end = Math.floor(end / 1000);
-    var all_series = [];
-		var done = [];
 
     function createCb(i) {
       return function(data) {
@@ -21,13 +21,9 @@ $(function() {
       };
     }
 
-		var indices = [8, 10, 14];
-    for (i = 0; i < indices.length; i++)
-    {
-      all_series.push([]);
-			done.push(false);
+    for (i = 1; i < 4; i++) {
       var url = 'http://192.168.1.201:8080/nodes/637673797374656D/series/';
-      url += indices[i].toString() + "?npoints=1400";
+      url += i.toString() + "?npoints=" + 360*24;
       url += "&start=" + start + "&end=" + end;
 
       $.ajax({
@@ -37,29 +33,47 @@ $(function() {
         success: createCb(i)
       });
     }
+  }
 
+  function onDataReceived(i, series) {
+    switch (i) {
+      case 1: // central heating
+        raw[0] = series;
+        ready[0] = true;
+        break;
+      case 2: // domestic hot water
+        raw[1] = series;
+        ready[1] = true;
+        break;
+      case 3: // flame status
+        raw[2] = series;
+        ready[2] = true;
+        break;
+      case 4: // gas usage
+        raw[3] = series;
+        ready[3] = true;
+        break;
+    };
 
-    function onDataReceived(i, series) {
-      all_series[i] = series;
-			done[i] = true;
-			render = true;
-			for (j = 0; j < done.length; j++)
-				render = render && done[j];
-      if (render)
-			{
-				var data = [
-					{label: "boiler", data: all_series[0]},
-					{label: "room desired", data: all_series[1]},
-					{label: "room actual", data: all_series[2]},
-				];
-        $.plot('#temperature', data, options);
-			}
+    var isReady = true;
+    for (j = 0; j < ready.length; j++)
+      isReady = isReady && ready[j];
+
+    if (isReady) {
+      for (j = 0; j < ready.length; j++)
+        ready[j] = false;
+
+      // compute gas usage per hour
+      // compute 
     }
+  }
 
+  function reload_graph() {
+    $.plot('#gas', data, options);
   }
 
   $(document).ready(function () {
-    reload_graph();
+    load_data();
     window.setInterval(reload_graph, 10000);
   });
 });
