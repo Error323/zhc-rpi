@@ -22,7 +22,7 @@ $(function() {
     }
 
     for (i = 1; i < 4; i++) {
-      var url = 'http://192.168.1.201:8080/nodes/637673797374656D/series/';
+      var url = 'http://utrecht.kubiko.nl:8082/nodes/637673797374656D/series/';
       url += i.toString() + "?npoints=" + 360*24;
       url += "&start=" + start + "&end=" + end;
 

@@ -7,7 +7,7 @@ $(function() {
   };
 
   function reload_graph() {
-    var url = 'http://192.168.1.201:8080/nodes/8000736D65746572/series/5?npoints=360'; //rx
+    var url = 'http://utrecht.kubiko.nl:8082/nodes/8000736D65746572/series/5?npoints=360'; //rx
 
     // Restrict to last couple of hours
     end = new Date().getTime();
