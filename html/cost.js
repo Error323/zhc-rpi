@@ -23,10 +23,17 @@ $(function() {
     },
     xaxis: { 
       ticks: []
+    },
+    yaxis: {
+      tickFormatter: euro_formatter
     }
   };
 
   function update_graph() {
+  }
+
+  function euro_formatter(v, axis) {
+    return '&euro;' + v;
   }
 
   function on_data_received(values) {
