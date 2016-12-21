@@ -54,8 +54,9 @@ $(function() {
   }
 
   function load_graph() {
-    end = new Date().getTime();
-    start = new Date(end - 3600*24*8*1000);
+    now = new Date();
+    end = new Date(now.getTime() - (now.getHours()*3600 + now.getMinutes()*60 + now.getSeconds()+1)*1000);
+    start = new Date(end.getTime() - 3600*24*7*1000);
     start = Math.floor(start / 1000);
 
     for (i = 0; i < 8; i++) {
