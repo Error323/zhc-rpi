@@ -6,7 +6,6 @@ $(function() {
   const BASE_URL = 'http://utrecht.kubiko.nl:8082/nodes';
   const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const SMETER_METRICS = [0, 1, 4];
-  const BOILER_METRICS = [2, 3];
   const NUM_DAYS = 7;
 
   var counter = 0;
@@ -40,17 +39,19 @@ $(function() {
   }
 
 
-  function on_data_received(metric, values) {
+  function on_data_received(index, values) {
     counter++;
-    raw_data.push([metric, values]);
+    raw_data.push([index, values]);
 
-    if (counter == 4) {
+    if (counter == SMETER_METRICS.length + 1) {
       raw_data.sort();
 
+      // add latest values to the time series
       for (i = 0; i < SMETER_METRICS.length; i++) {
         metric = SMETER_METRICS[i];
         raw_data[i][1].push([raw_data[3][1].timestamp, raw_data[3][1].values[metric]]);
       }
+      // remove latest values object
       raw_data.splice(3, 1);
 
       var euro_high = [];
@@ -60,7 +61,6 @@ $(function() {
       for (i = 0; i < NUM_DAYS; i++) {
         date = new Date(raw_data[0][1][i][0]);
         options.xaxis.ticks.push([i, DAYS[date.getDay()]]);
-
         euro_low.push([i, (raw_data[0][1][i+1][1] - raw_data[0][1][i][1])*LOW_EURO]);
         euro_high.push([i, (raw_data[1][1][i+1][1] - raw_data[1][1][i][1])*HIGH_EURO]);
         euro_gas.push([i, (raw_data[2][1][i+1][1] - raw_data[2][1][i][1])*GAS_EURO]);
@@ -82,13 +82,13 @@ $(function() {
     options.xaxis.ticks = [];
     now = new Date();
     end = new Date(now.getTime() - (now.getHours()*3600 + now.getMinutes()*60 + now.getSeconds())*1000);
-    var url = BASE_URL + '/8000736D65746572/values/'
+    var url = BASE_URL + '/8000736D65746572/values/';
 
     $.ajax({
       url: url,
       method: 'GET',
       dataType: 'json',
-      success: callback(5)
+      success: callback(SMETER_METRICS.length)
     });
 
     end = Math.floor(end.getTime()/1000);
@@ -101,7 +101,7 @@ $(function() {
         url: url,
         method: 'GET',
         dataType: 'json',
-        success: callback(metric)
+        success: callback(i)
       });
     }
   }
