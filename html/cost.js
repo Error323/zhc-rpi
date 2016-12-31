@@ -44,18 +44,23 @@ $(function() {
     counter++;
     raw_data.push([metric, values]);
 
-    if (counter == 4) {
+    if (counter == (SMETER_METRICS.length + BOILER_METRICS.length + 2)) {
       raw_data.sort();
 
       for (i = 0; i < SMETER_METRICS.length; i++) {
         metric = SMETER_METRICS[i];
-        raw_data[i][1].push([raw_data[3][1].timestamp, raw_data[3][1].values[metric]]);
+        raw_data[metric][1].push([raw_data[5][1].timestamp, raw_data[5][1].values[metric]]);
       }
-      raw_data.splice(3, 1);
+
+      for (i = 0; i < BOILER_METRICS.length; i++) {
+        metric = BOILER_METRICS[i];
+        raw_data[metric][1].push([raw_data[6][1].timestamp, raw_data[6][1].values[metric]]);
+      }
 
       var euro_high = [];
       var euro_low = [];
-      var euro_gas = [];
+      var euro_dhw = [];
+      var euro_ch = [];
 
       for (i = 0; i < NUM_DAYS; i++) {
         date = new Date(raw_data[0][1][i][0]);
@@ -63,13 +68,17 @@ $(function() {
 
         euro_low.push([i, (raw_data[0][1][i+1][1] - raw_data[0][1][i][1])*LOW_EURO]);
         euro_high.push([i, (raw_data[1][1][i+1][1] - raw_data[1][1][i][1])*HIGH_EURO]);
-        euro_gas.push([i, (raw_data[2][1][i+1][1] - raw_data[2][1][i][1])*GAS_EURO]);
+        gas_total = (raw_data[4][1][i+1][1] - raw_data[4][1][i][1]);
+        dhw = raw_data[2][1][i][1] / raw_data[3][1][i][1];
+        euro_dhw.push([i, gas_total*dhw*GAS_EURO]);
+        euro_ch.push([i, gas_total*(1.0-dhw)*GAS_EURO]);
       }
 
       var data = [
-        {label: "Low", data: euro_low }, 
-        {label: "High", data: euro_high },
-        {label: "Gas", data: euro_gas }
+        {label: "low", data: euro_low }, 
+        {label: "high", data: euro_high },
+        {label: "dhw", data: euro_dhw },
+        {label: "ch", data: euro_ch }
       ];
       $.plot('#cost', data, options);
     }
@@ -82,7 +91,10 @@ $(function() {
     options.xaxis.ticks = [];
     now = new Date();
     end = new Date(now.getTime() - (now.getHours()*3600 + now.getMinutes()*60 + now.getSeconds())*1000);
-    var url = BASE_URL + '/8000736D65746572/values/'
+    end = Math.floor(end.getTime()/1000);
+    start = end - 3600*24*(NUM_DAYS-1);
+    
+    var url = BASE_URL + '/8000736D65746572/values/';
 
     $.ajax({
       url: url,
@@ -91,11 +103,30 @@ $(function() {
       success: callback(5)
     });
 
-    end = Math.floor(end.getTime()/1000);
-    start = end - 3600*24*(NUM_DAYS-1);
     for (i = 0; i < SMETER_METRICS.length; i++) {
       metric = SMETER_METRICS[i];
       url = BASE_URL + '/8000736D65746572/series/' + metric + '?npoints=' + NUM_DAYS + '&start=' + start + '&end=' + end;
+
+      $.ajax({
+        url: url,
+        method: 'GET',
+        dataType: 'json',
+        success: callback(metric)
+      });
+    }
+    
+    url = BASE_URL + '/637673797374656D/values/';
+
+    $.ajax({
+      url: url,
+      method: 'GET',
+      dataType: 'json',
+      success: callback(6)
+    });
+
+    for (i = 0; i < BOILER_METRICS.length; i++) {
+      metric = BOILER_METRICS[i];
+      url = BASE_URL + '/637673797374656D/series/' + metric + '?npoints=' + NUM_DAYS + '&start=' + start + '&end=' + end;
 
       $.ajax({
         url: url,
